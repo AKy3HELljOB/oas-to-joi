@@ -9,3 +9,7 @@ export { JoiArrayRefDecorator } from "./joi-array-ref.decorator";
 export { JoiBooleanDecorator } from "./joi-boolean.decorator";
 export { JoiDateDecorator } from "./joi-date.decorator";
 export { JoiAllowDecorator } from "./joi-allow.decorator";
+export { JoiExampleDecorator } from "./joi-example.decorator";
+export { JoiDescriptionDecorator } from "./joi-description.decorator";
+export { JoiUnknownDecorator } from "./joi-unknown.decorator";
+export { JoiAlternativesDecorator } from "./joi-alternatives.decorator";

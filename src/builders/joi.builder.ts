@@ -18,30 +18,66 @@ import {
   JoiBooleanDecorator,
   JoiDateDecorator,
   JoiAllowDecorator,
+  JoiDescriptionDecorator,
+  JoiExampleDecorator,
+  JoiUnknownDecorator,
+  JoiAlternativesDecorator,
 } from "../decorators/joi";
 import { JoiComponent } from "../decorators/components/joi.component";
 import { Decorator } from "../decorators/decorator";
 import { OASEnum } from "../enums/oas.enum";
 import { PerformanceHelper } from "../helpers/performance.helper";
+import { Options } from "../types/options.type";
+
+const isReference = (
+  param: OpenAPIV3.ReferenceObject | any,
+): param is OpenAPIV3.ReferenceObject => {
+  return (param as OpenAPIV3.ReferenceObject).$ref !== undefined;
+};
+
+interface SchemaInfo {
+  description: string;
+  required?: boolean;
+  schema: any;
+  refName: string;
+}
+interface SchemaProp {
+  properties: Record<string, SchemaInfo>;
+}
+
+interface Operations {
+  [index: string]: {
+    method?: string;
+    url?: string;
+    query?: SchemaProp;
+    path?: SchemaProp;
+    responses?: SchemaProp;
+    body?: SchemaInfo;
+  };
+}
 
 export class JoiBuilder implements IBuilder {
   data: OpenAPIV3.Document;
+  readonly options: Options;
   readonly outputDir: string;
   private CONTENT_TYPE = "application/json";
-  protected fileNameExtension = ".ts";
+  protected fileNameExtension = ".js";
   private performanceHelper = new PerformanceHelper();
 
   constructor(
     readonly parser: IParser,
-    outputDir: string,
+    options: Options,
   ) {
-    this.outputDir = `${outputDir}/joi`;
+    this.options = options;
+    this.outputDir = `${options.outputDir}/joi`;
     this.parser.load();
     this.data = this.parser.export();
   }
 
   async dump(): Promise<number> {
     const { operations, schemas } = this.makeDefinitions();
+    console.log("operations :>> ", operations);
+    console.log("schemas :>> ", schemas);
     return await this.writeFile([...operations, ...schemas]);
   }
 
@@ -53,79 +89,205 @@ export class JoiBuilder implements IBuilder {
     const operationsList: Array<SourceObject> = [];
     const sourceObjectList: Array<SourceObject> = [];
 
+    const operations = this.getOperations(this.data);
+    Object.entries(operations).forEach(([operationName, ref]) => {
+      const definitions: string[] = [];
+      const references: string[] = [];
+      // console.log("ref :>> ", ref);
+      if (ref.body) {
+        const schemaName = ref.body.refName/* + "Body"*/;
+        this.addSchema(sourceObjectList, schemaName, ref.body.schema);
+        definitions.push(schemaName);
+        references.push(schemaName);
+      }
+
+      if (ref.query) {
+        const schemaName = operationName + "Query";
+        this.addSchema(sourceObjectList, schemaName, ref.query);
+        definitions.push(schemaName);
+        references.push(schemaName);
+      }
+
+      if (ref.path) {
+        const schemaName = operationName + "Path";
+        this.addSchema(sourceObjectList, schemaName, ref.path);
+        definitions.push(schemaName);
+        references.push(schemaName);
+      }
+
+      if (ref.responses) {
+        Object.entries(ref.responses.properties).forEach(([code, response]) => {
+          if (response.schema?.$ref || response.schema?.properties) {
+            const schemaName = operationName + "Response" + code;
+            // console.log('response.schema :>> ', response.schema);
+            this.addSchema(sourceObjectList, schemaName, response.schema);
+            definitions.push(schemaName);
+            references.push(schemaName);
+          } else {
+            console.log("not supported schema :>> ", code, operationName);
+          }
+        });
+      }
+      operationsList.push({
+        [this.makePath(ref.body?.refName || operationName).name]: {
+          refName: ref.body?.refName,
+          method: operations[operationName].method,
+          path: operations[operationName].url,
+          definitions,
+          references,
+        },
+      });
+    });
+
+    return { operations: operationsList, schemas: sourceObjectList };
+  }
+
+  protected addSchema(
+    sourceObjectList: Array<SourceObject>,
+    schemaName: string,
+    schema: any,
+  ) {
     const sourceObjectIsPresent = (name: string) => {
       const index = sourceObjectList.findIndex((item) => {
         return this.getSourceObjectItemName(item) === name;
       });
       return index > -1 ? true : false;
     };
-
-    Object.entries(this.getOperations(this.data)).forEach(
-      ([operationName, ref]) => {
-        const { schema, refName: schemaName } = ref;
-        operationsList.push({
-          [operationName]: {
-            definitions: [schemaName],
-            references: [schemaName],
-          },
+    if (!sourceObjectIsPresent(schemaName)) {
+      const sourceObject = this.makeSourceObject(schemaName, schema);
+      const { references } = sourceObject[schemaName];
+      if (references) {
+        references.forEach((item) => {
+          if (sourceObjectIsPresent(schemaName)) return;
+          const schema = <OpenAPIV3.SchemaObject>(
+            this.data.components.schemas[item]
+          );
+          this.addSchema(sourceObjectList, item, schema);
         });
-
-        if (!sourceObjectIsPresent(schemaName)) {
-          const sourceObject = this.makeSourceObject(schemaName, schema);
-          const { references } = sourceObject[schemaName];
-          if (references) {
-            references.forEach((item) => {
-              if (sourceObjectIsPresent(schemaName)) return;
-              const schema = <OpenAPIV3.SchemaObject>(
-                this.data.components.schemas[item]
-              );
-              sourceObjectList.push(this.makeSourceObject(item, schema));
-            });
-          }
-          if (!sourceObjectIsPresent(schemaName))
-            sourceObjectList.push(sourceObject);
-        }
-      },
-    );
-
-    return { operations: operationsList, schemas: sourceObjectList };
+      }
+      if (!sourceObjectIsPresent(schemaName))
+        sourceObjectList.push(sourceObject);
+    }
+    return sourceObjectList;
   }
 
-  protected getOperations(data: OpenAPIV3.Document) {
-    const operations: Record<
-      string,
-      {
-        schema: any;
-        refName: string;
+  protected getSchema(
+    contentSchema: OpenAPIV3.ReferenceObject | OpenAPIV3.SchemaObject,
+    operationId?: string,
+    description?: string,
+    required?: boolean,
+  ) {
+    const { $ref, ...schema } = <
+      OpenAPIV3.ReferenceObject & OpenAPIV3.SchemaObject
+    >contentSchema;
+
+    let refName: string = null;
+    if ($ref || schema["items"]) {
+      const ref = $ref || schema["items"]["$ref"];
+      if (ref) {
+        refName = ref.split("/").pop();
       }
-    > = {};
+    }
+    return {
+      refName: refName || operationId,
+      schema: refName ? this.data.components.schemas[refName] : schema,
+      description,
+      required,
+    };
+  }
+
+  protected getBody(operation: OpenAPIV3.OperationObject) {
+    const requestBody = <OpenAPIV3.RequestBodyObject>operation.requestBody;
+    if (requestBody) {
+      const content = requestBody.content[this.CONTENT_TYPE] || null;
+      if (content) {
+        return this.getSchema(
+          content.schema,
+          operation.operationId,
+          operation.description,
+        );
+      }
+    }
+    return null;
+  }
+
+  protected getParameters(operation: OpenAPIV3.OperationObject) {
+    const requestParameters = <
+      (OpenAPIV3.ReferenceObject | OpenAPIV3.ParameterObject)[]
+    >operation.parameters;
+
+    const path: Record<string, SchemaInfo> = {};
+    const query: Record<string, SchemaInfo> = {};
+
+    if (requestParameters) {
+      requestParameters.forEach((param) => {
+        if (isReference(param)) {
+          console.log("#ref parameters not supported");
+        } else {
+          const schema = this.getSchema(
+            param.schema,
+            operation.operationId,
+            param.description,
+            param.required,
+          );
+
+          if (param.in === "path") {
+            path[param.name] = schema;
+          } else {
+            query[param.name] = schema;
+          }
+        }
+      });
+    }
+    return {
+      query: Object.keys(query).length ? { properties: query } : undefined,
+      path: Object.keys(path).length ? { properties: path } : undefined,
+    };
+  }
+
+  protected getResponses(operation: OpenAPIV3.OperationObject) {
+    const requestResponses = operation.responses;
+    const properties: Record<string, SchemaInfo> = {};
+
+    if (requestResponses) {
+      Object.entries(requestResponses).forEach(([code, response]) => {
+        if (isReference(response)) {
+          console.log("#ref response not supported");
+        } else {
+          if (response.content) {
+            const content = response.content[this.CONTENT_TYPE] || null;
+            if (content) {
+              const schema = this.getSchema(
+                content.schema,
+                operation.operationId,
+                response.description,
+              );
+              properties[code] = schema;
+            }
+          }
+        }
+      });
+    }
+    return Object.keys(properties).length ? { responses: { properties } } : {};
+  }
+
+  protected getOperations(data: OpenAPIV3.Document): Operations {
+    const operations: Operations = {};
 
     Object.entries(data.paths).forEach(([urlPath, sc]) => {
       Object.entries(sc).forEach(([method, op]) => {
-        const operation = <OpenAPIV3.OperationObject>op;
-
-        const requestBody = <OpenAPIV3.RequestBodyObject>operation.requestBody;
-        if (requestBody) {
-          const content = requestBody.content[this.CONTENT_TYPE] || null;
-          if (content) {
-            const { $ref, ...schema } = <
-              OpenAPIV3.ReferenceObject & OpenAPIV3.SchemaObject
-            >content.schema;
-
-            let refName = null;
-            if ($ref || schema["items"]) {
-              const ref = $ref || schema["items"]["$ref"];
-              if (ref) {
-                refName = ref.split("/").pop();
-              }
-            }
-            const name = operation.operationId || method + urlPath + refName;
-            operations[name] = {
-              refName: refName || operation.operationId,
-              schema: refName ? this.data.components.schemas[refName] : schema,
-            };
-          }
-        }
+        const operation = <OpenAPIV3.OperationObject>op;        
+        const name = method + urlPath;
+        
+        const path = this.makePath(name);
+        operations[operation.operationId || path.name] = {
+          method: method,
+          url: urlPath,
+          body: this.getBody(operation),
+          ...this.getParameters(operation),
+          ...this.getResponses(operation),
+        };
+        // console.log("urlPath :>> ", urlPath);
       });
     });
     return operations;
@@ -144,23 +306,46 @@ export class JoiBuilder implements IBuilder {
     };
 
     this.performanceHelper.setMark(name);
-    Object.entries(schema.properties).forEach(([propName, def]) => {
-      const required = schema.required?.indexOf(propName) >= 0;
+    // console.log("schema.properties :>> ", schema);
 
+    if (!schema.properties) {
       let joiComponent = new JoiComponent();
-
-      joiComponent = new JoiNameDecorator(joiComponent, propName);
-
-      const referenceName = this.getReferenceName(def);
-      if (referenceName) {
-        def[OASEnum.REF] = referenceName;
-        sourceObject[name].references.push(referenceName);
-      }
-
-      joiComponent = this.getDecoratoryByType(joiComponent, def);
-      if (required) joiComponent = new JoiRequiredDecorator(joiComponent);
+      joiComponent = new JoiUnknownDecorator(joiComponent);
       joiItems.push(joiComponent);
-    });
+    } else {
+      Object.entries(schema.properties).forEach(([propName, def]) => {
+        const required = schema.required?.indexOf(propName) >= 0;
+
+        let joiComponent = new JoiComponent();
+
+        joiComponent = new JoiNameDecorator(joiComponent, propName);
+
+        const referenceName = this.getReferenceName(def);
+        if (referenceName) {
+          def[OASEnum.REF] = referenceName;
+          if (
+            sourceObject[name].references.findIndex(
+              (v) => referenceName === v,
+            ) === -1
+          )
+            sourceObject[name].references.push(referenceName);
+        }
+
+        joiComponent = this.getDecoratoryByType(joiComponent, def);
+        if (required) joiComponent = new JoiRequiredDecorator(joiComponent);
+        if (!isReference(def)) {
+          const { example, description } = def;
+          if (example)
+            joiComponent = new JoiExampleDecorator(joiComponent, example);
+          if (description)
+            joiComponent = new JoiDescriptionDecorator(
+              joiComponent,
+              description,
+            );
+        }
+        joiItems.push(joiComponent);
+      });
+    }
 
     sourceObject[name].definitions = joiItems.map((item) => item.generate());
     this.performanceHelper.getMeasure(name);
@@ -194,6 +379,28 @@ export class JoiBuilder implements IBuilder {
       ]);
     } else if (type === OASEnum.ARRAY && def["items"][OASEnum.REF]) {
       joiComponent = new JoiArrayRefDecorator(joiComponent, def[OASEnum.REF]);
+      // } else if (type === OASEnum.ARRAY && def["items"]) {
+      //   console.log('def["items"] :>> ', def["items"]);
+      //   if (def[OASEnum.ALL_OF]) {
+      //     joiComponent = new JoiAlternativesDecorator(
+      //       joiComponent,
+      //       "all",
+      //       def["items"][OASEnum.ALL_OF],
+      //     );
+      //   } else if (def[OASEnum.ONE_OF]) {
+      //     joiComponent = new JoiAlternativesDecorator(
+      //       joiComponent,
+      //       "one",
+      //       def["items"][OASEnum.ONE_OF],
+      //     );
+      //   } else if (def[OASEnum.ANY_OF]) {
+      //     joiComponent = new JoiAlternativesDecorator(
+      //       joiComponent,
+      //       "any",
+      //       def["items"][OASEnum.ANY_OF],
+      //     );
+      //   }
+      //   joiComponent = new JoiArrayRefDecorator(joiComponent, def[OASEnum.REF]);
     } else if (type === OASEnum.STRING && def[OASEnum.ENUM]) {
       joiComponent = new JoiValidDecorator(
         this.getDecoratorByPrimitiveType(def, joiComponent),
@@ -201,6 +408,27 @@ export class JoiBuilder implements IBuilder {
       );
     } else if (def[OASEnum.REF]) {
       joiComponent = new JoiRefDecorator(joiComponent, def[OASEnum.REF]);
+      // } else if (def[OASEnum.ALL_OF]) {
+      //   console.log("def[OASEnum.ALL_OF] :>> ", def[OASEnum.ALL_OF]);
+      //   joiComponent = new JoiAlternativesDecorator(
+      //     joiComponent,
+      //     "all",
+      //     def[OASEnum.ALL_OF],
+      //   );
+      // } else if (def[OASEnum.ONE_OF]) {
+      //   console.log("def[OASEnum.ONE_OF] :>> ", def[OASEnum.ONE_OF]);
+      //   joiComponent = new JoiAlternativesDecorator(
+      //     joiComponent,
+      //     "one",
+      //     def[OASEnum.ONE_OF],
+      //   );
+      // } else if (def[OASEnum.ANY_OF]) {
+      //   console.log("def[OASEnum.ANY_OF] :>> ", def[OASEnum.ANY_OF]);
+      //   joiComponent = new JoiAlternativesDecorator(
+      //     joiComponent,
+      //     "any",
+      //     def[OASEnum.ANY_OF],
+      //   );
     } else {
       joiComponent = this.getDecoratorByPrimitiveType(def, joiComponent);
     }
@@ -246,16 +474,45 @@ export class JoiBuilder implements IBuilder {
         min: def["minLength"],
         max: def["maxLength"],
         pattern: def["pattern"],
+        empty: this.options.emptyString,
+        nullable: this.options.nullableString,
       });
     return decorator;
   }
 
+  makePath(url: string) {
+    const data = url.split("/");
+    if (data.length === 1) {
+      return {
+        name: url,
+        method: null,
+        path: "components",
+      };
+    }
+    const method = data.shift();
+    let name = data.pop();
+    if (name?.match(/\{.*\}/)) {
+      name = Utils.toKebabCase(data.pop() + name);
+    }
+    return {
+      name,
+      method,
+      path: data,
+    };
+  }
   render(item: SourceObject): Array<string> {
+   // console.log("render item :>> ", item);
     const itemName = this.getSourceObjectItemName(item);
+    const path = this.makePath(itemName);
+    const fn = this.makeSchemaFileName(itemName);
+   // console.log("this.makePath(itemName) :>> ", path);
     const { definitions, references } = item[itemName];
 
     const mergedTemplate = mergeJoiTpl({
-      references: this.makeReferencesImportStatement(references),
+      references: this.makeReferencesImportStatement(
+        references,
+        Array.isArray(path.path) ? path.path.length : 0,
+      ),
       definitions,
     });
 
@@ -263,21 +520,31 @@ export class JoiBuilder implements IBuilder {
   }
 
   protected getSourceObjectItemName(item: SourceObject) {
+   // console.log('getSourceObjectItemName item :>> ', item);
     return Object.keys(item)[0];
   }
 
-  protected makeReferencesImportStatement(items: Array<string>): Array<string> {
+  protected makeReferencesImportStatement(
+    items: Array<string>,
+    level: number,
+  ): Array<string> {
     const imports = [];
+    const path = this.options.nested
+      ? new Array(level).fill("..").join("/") + "/components"
+      : ".";
+
     items.forEach((item) => {
       const [name] = this.makeSchemaFileName(item).split(
         this.fileNameExtension,
       );
-      imports.push(`import ${item} from "./${name}";`);
+      // console.log("name :>> ", name);
+      imports.push(`import ${item} from "${path}/${name}.js";`);
     });
     return imports;
   }
 
   protected makeSchemaFileName(value: string) {
+    //  console.log("value :>> ", value);
     const name = Utils.toKebabCase(value);
     return `${name}.schema${this.fileNameExtension}`;
   }
@@ -287,7 +554,11 @@ export class JoiBuilder implements IBuilder {
     const targetDirectory = this.outputDir;
     IOHelper.createFolder(targetDirectory);
     for (const item of data) {
+     // console.log("item :>> ", item);
       const [fileName, content] = this.render(item);
+      if(fileName === 'submit.schema.js')
+        console.log("content :>> ", content);
+      // console.log('filename :>> ', fileName);
       this.performanceHelper.setMark(fileName);
       await IOHelper.writeFile({
         fileName,

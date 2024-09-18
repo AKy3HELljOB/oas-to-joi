@@ -22,18 +22,20 @@ import { TypeScriptComponent } from "../decorators/components/ts.component";
 import { Decorator } from "../decorators/decorator";
 import { OASEnum } from "../enums/oas.enum";
 import { PerformanceHelper } from "../helpers/performance.helper";
+import { Options } from "../types/options.type";
 
 export class TypeScriptBuilder implements IBuilder {
   data: OpenAPIV3.Document;
+  readonly options: Options;
   readonly outputDir: string;
   protected fileNameExtension = ".ts";
   private performanceHelper = new PerformanceHelper();
 
   constructor(
     readonly parser: IParser,
-    outputDir: string,
+    options: Options,
   ) {
-    this.outputDir = `${outputDir}/types`;
+    this.outputDir = `${options.outputDir}/types`;
     this.parser.load();
     this.data = this.parser.export();
   }

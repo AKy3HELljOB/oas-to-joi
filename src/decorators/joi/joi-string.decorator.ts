@@ -3,7 +3,9 @@ import { Decorator } from "../decorator";
 
 const REGEX_PATTERN_WORD = "pattern";
 type options = {
-  format:
+  empty?: boolean;
+  nullable?: boolean;
+  format?:
     | "default"
     | "email"
     | "uuid"
@@ -55,16 +57,30 @@ export class JoiStringDecorator extends Decorator {
   }
 
   protected applyAditionalOptions(): string {
-    const { format: _, ...validations } = this.options;
+    // eslint-disable-next-line @typescript-eslint/no-unused-vars
+    const { format, empty, nullable, ...validations } = this.options;
     const options = Object.entries(validations).map(([key, value]) => {
       if (value) return `.${key}(${this.setAdditionalOptionValue(key, value)})`;
     });
     return options.join("");
   }
 
+  getAllowedValues() {
+    const values = [
+      ...(this.options.empty ? ["''"] : []),
+      ...(this.options.nullable ? [`null`] : []),
+    ];
+    return values.length ? `.allow(${values.join(",")})` : "";
+  }
+
   public generate(): string {
-    const subType = this.getStringSubType();
-    const additionalValidations = this.applyAditionalOptions();
-    return `${this.component.generate()}Joi.string()${subType}${additionalValidations}`;
+    const substrings = [
+      this.component.generate(),
+      "Joi.string()",
+      this.getStringSubType(),
+      this.getAllowedValues(),
+      this.applyAditionalOptions(),
+    ];
+    return substrings.join("");
   }
 }

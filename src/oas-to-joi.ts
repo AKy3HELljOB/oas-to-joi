@@ -19,8 +19,8 @@ export class OasToJoi {
       },
     });
 
-    this.joiBuilder = new JoiBuilder(parser, options.outputDir);
-    this.typesBuilder = new TypeScriptBuilder(parser, options.outputDir);
+    this.joiBuilder = new JoiBuilder(parser, options);
+    this.typesBuilder = new TypeScriptBuilder(parser, options);
   }
 
   async dumpJoiSchemas() {

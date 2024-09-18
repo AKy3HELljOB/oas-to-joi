@@ -6,6 +6,10 @@ const start = async () => {
   const oasToJoi = new OasToJoi({
     sourceFileName: oasFilePath,
     outputDir: outputDirPath,
+    unknown: true,
+    emptyString: true,
+    nullableString: true,
+    nested: false,
   });
   await oasToJoi.dumpJoiSchemas();
   await oasToJoi.dumpTypes();

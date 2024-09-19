@@ -28,6 +28,7 @@ import { Decorator } from "../decorators/decorator";
 import { OASEnum } from "../enums/oas.enum";
 import { PerformanceHelper } from "../helpers/performance.helper";
 import { Options } from "../types/options.type";
+import { BaseComponent } from "../decorators/components/base.component";
 
 const isReference = (
   param: OpenAPIV3.ReferenceObject | any,
@@ -72,6 +73,7 @@ export class JoiBuilder implements IBuilder {
     this.outputDir = `${options.outputDir}/joi`;
     this.parser.load();
     this.data = this.parser.export();
+    const references: string[] = [];
   }
 
   async dump(): Promise<number> {
@@ -297,6 +299,7 @@ export class JoiBuilder implements IBuilder {
     name: string,
     schema: OpenAPIV3.SchemaObject,
   ): SourceObject {
+    console.log('schema :>> ', schema);
     const joiItems: Array<JoiComponent> = [];
     const sourceObject: SourceObject = {
       [name]: {
@@ -330,6 +333,7 @@ export class JoiBuilder implements IBuilder {
           )
             sourceObject[name].references.push(referenceName);
         }
+        sourceObject[name].references = [...sourceObject[name].references, ...this.getAlternativesReferenceNames(def)];
 
         joiComponent = this.getDecoratoryByType(joiComponent, def);
         if (required) joiComponent = new JoiRequiredDecorator(joiComponent);
@@ -361,6 +365,18 @@ export class JoiBuilder implements IBuilder {
     if (ref) return ref.split("/").pop();
     else return null;
   }
+  protected getAlternativesReferenceNames(
+    def: OpenAPIV3.ReferenceObject | OpenAPIV3.SchemaObject,
+  ): string[] {
+    const refs = [
+      ...(def[OASEnum.ALL_OF] || []),
+      ...(def[OASEnum.ONE_OF] || []),
+      ...(def[OASEnum.ANY_OF] || [])
+    ]
+    console.log('refs :>> ', refs);
+    if (refs.length) return refs.map((v)=>v.$ref.split("/").pop());
+    else return [];
+  }
 
   protected isArrayOfReferences(
     def: OpenAPIV3.ReferenceObject | OpenAPIV3.SchemaObject,
@@ -368,39 +384,29 @@ export class JoiBuilder implements IBuilder {
     return def["type"] == OASEnum.ARRAY && def["items"][OASEnum.REF];
   }
 
+  protected JoiAlternativesRefDecorator( component: BaseComponent,
+     match: "all" | "any" | "one" = "any",
+    items: OpenAPIV3.ReferenceObject[]) {
+     return new JoiAlternativesDecorator(
+          component,
+          match,
+          items.map((v)=> v.$ref.split("/").pop()),
+        );
+  }
   protected getDecoratoryByType(
     joiComponent: JoiComponent,
     def: OpenAPIV3.ReferenceObject | OpenAPIV3.SchemaObject,
   ): JoiComponent {
+   // console.log('def :>> ', def);
     const type = def["type"];
     if (type === OASEnum.ARRAY && def["items"]["type"]) {
       joiComponent = new JoiArrayDecorator(joiComponent, [
         this.getDecoratorByPrimitiveType(def["items"], new JoiComponent()),
       ]);
-    } else if (type === OASEnum.ARRAY && def["items"][OASEnum.REF]) {
+    } else if (this.isArrayOfReferences(def)) {
       joiComponent = new JoiArrayRefDecorator(joiComponent, def[OASEnum.REF]);
-      // } else if (type === OASEnum.ARRAY && def["items"]) {
-      //   console.log('def["items"] :>> ', def["items"]);
-      //   if (def[OASEnum.ALL_OF]) {
-      //     joiComponent = new JoiAlternativesDecorator(
-      //       joiComponent,
-      //       "all",
-      //       def["items"][OASEnum.ALL_OF],
-      //     );
-      //   } else if (def[OASEnum.ONE_OF]) {
-      //     joiComponent = new JoiAlternativesDecorator(
-      //       joiComponent,
-      //       "one",
-      //       def["items"][OASEnum.ONE_OF],
-      //     );
-      //   } else if (def[OASEnum.ANY_OF]) {
-      //     joiComponent = new JoiAlternativesDecorator(
-      //       joiComponent,
-      //       "any",
-      //       def["items"][OASEnum.ANY_OF],
-      //     );
-      //   }
-      //   joiComponent = new JoiArrayRefDecorator(joiComponent, def[OASEnum.REF]);
+      } else if (type === OASEnum.ARRAY && def["items"]) {
+        console.log('def["items"] :>> ', def["items"]);
     } else if (type === OASEnum.STRING && def[OASEnum.ENUM]) {
       joiComponent = new JoiValidDecorator(
         this.getDecoratorByPrimitiveType(def, joiComponent),
@@ -408,27 +414,27 @@ export class JoiBuilder implements IBuilder {
       );
     } else if (def[OASEnum.REF]) {
       joiComponent = new JoiRefDecorator(joiComponent, def[OASEnum.REF]);
-      // } else if (def[OASEnum.ALL_OF]) {
-      //   console.log("def[OASEnum.ALL_OF] :>> ", def[OASEnum.ALL_OF]);
-      //   joiComponent = new JoiAlternativesDecorator(
-      //     joiComponent,
-      //     "all",
-      //     def[OASEnum.ALL_OF],
-      //   );
-      // } else if (def[OASEnum.ONE_OF]) {
-      //   console.log("def[OASEnum.ONE_OF] :>> ", def[OASEnum.ONE_OF]);
-      //   joiComponent = new JoiAlternativesDecorator(
-      //     joiComponent,
-      //     "one",
-      //     def[OASEnum.ONE_OF],
-      //   );
-      // } else if (def[OASEnum.ANY_OF]) {
-      //   console.log("def[OASEnum.ANY_OF] :>> ", def[OASEnum.ANY_OF]);
-      //   joiComponent = new JoiAlternativesDecorator(
-      //     joiComponent,
-      //     "any",
-      //     def[OASEnum.ANY_OF],
-      //   );
+      } else if (def[OASEnum.ALL_OF]) {
+        console.log("def[OASEnum.ALL_OF] :>> ", def[OASEnum.ALL_OF]);
+        joiComponent = this.JoiAlternativesRefDecorator(
+          joiComponent,
+          "all",
+          def[OASEnum.ALL_OF],
+        );
+      } else if (def[OASEnum.ONE_OF]) {
+        console.log("def[OASEnum.ONE_OF] :>> ", def[OASEnum.ONE_OF]);
+        joiComponent = this.JoiAlternativesRefDecorator(
+          joiComponent,
+          "one",
+          def[OASEnum.ONE_OF],
+        );
+      } else if (def[OASEnum.ANY_OF]) {
+        console.log("def[OASEnum.ANY_OF] :>> ", def[OASEnum.ANY_OF]);
+        joiComponent = this.JoiAlternativesRefDecorator(
+          joiComponent,
+          "any",
+          def[OASEnum.ANY_OF],
+        );
     } else {
       joiComponent = this.getDecoratorByPrimitiveType(def, joiComponent);
     }

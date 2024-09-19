@@ -4,17 +4,20 @@ import { Decorator } from "../decorator";
 export class JoiAlternativesDecorator extends Decorator {
   constructor(
     component: BaseComponent,
-    private match: "all" | "any" | "one",
-    private itemsType: Array<Decorator>,
+    private match: "all" | "any" | "one" = "any",
+    private itemsType: Array<String>,
   ) {
     super(component);
   }
 
   protected getItemsType(): string {
-    return this.itemsType.map((item) => item.generate()).join(",");
+    console.log('this.itemsType :>> ', this.itemsType);
+    return this.itemsType.join(",");
   }
   public generate(): string {
     const items = this.getItemsType();
-    return `${this.component.generate()}Joi.alternatives(${items}).match()`;
+    const s = `${this.component.generate()}Joi.alternatives([${items}]).match(${this.match})`;
+    console.log('JoiAlternativesDecorator :>> ', s);
+    return s
   }
 }

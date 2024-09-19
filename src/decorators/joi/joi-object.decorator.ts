@@ -1,21 +1,19 @@
 import { BaseComponent } from "../components/base.component";
 import { Decorator } from "../decorator";
 
-export class JoiAlternativesDecorator extends Decorator {
+export class JoiObjectDecorator extends Decorator {
   constructor(
     component: BaseComponent,
-    private match: "all" | "any" | "one" = "any",
-    private itemsType: Array<String>,
+    private itemsType: Array<BaseComponent>,
   ) {
     super(component);
   }
 
   protected getItemsType(): string {
-    return this.itemsType.join(",");
+    return this.itemsType.map((item) => item.generate()).join(",");
   }
   public generate(): string {
     const items = this.getItemsType();
-    const s = `${this.component.generate()}Joi.alternatives([${items}]).match("${this.match}")`;
-    return s
+    return `${this.component.generate()}Joi.object({${items}})`;
   }
 }

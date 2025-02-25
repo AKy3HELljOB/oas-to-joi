@@ -4,5 +4,6 @@ export type Options = {
   unknown?: boolean;
   emptyString?: boolean;
   nullableString?: boolean;
+  validAsExample?: boolean;
   nested?: boolean;
 };

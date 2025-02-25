@@ -1,6 +1,7 @@
 export { JoiStringDecorator } from "./joi-string.decorator";
 export { JoiRequiredDecorator } from "./joi-required.decorator";
 export { JoiValidDecorator } from "./joi-valid.decorator";
+export { JoiValidExampleDecorator } from "./joi-valid-example.decorator";
 export { JoiNameDecorator } from "./joi-name.decorator";
 export { JoiNumberDecorator } from "./joi-number.decorator";
 export { JoiRefDecorator } from "./joi-ref.decorator";

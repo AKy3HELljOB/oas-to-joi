@@ -8,11 +8,12 @@ const start = async () => {
     outputDir: outputDirPath,
     unknown: true,
     emptyString: true,
+    validAsExample: false,
     nullableString: true,
     nested: false,
   });
   await oasToJoi.dumpJoiSchemas();
-  await oasToJoi.dumpTypes();
+  // await oasToJoi.dumpTypes();
 };
 
 start();

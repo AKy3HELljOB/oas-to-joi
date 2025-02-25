@@ -1,8 +1,8 @@
 # oas-to-joi
 
 Create Joi schemas from your Open Api Specification file
+Fork of https://github.com/maxmartinezc/oas-to-joi with enhanced OpenAPI 3 support.
 
-_**Bonus**_: Typescript Types files from the OAS schemas definitions too. 
 
 ## How to install
 `npm install --save-dev oas-to-joi`

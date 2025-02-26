@@ -15,7 +15,7 @@ export class JoiAlternativesDecorator extends Decorator {
     const circularIndex = this.itemsType.indexOf(this.name);
     if (circularIndex !== -1) {
       this.itemsType.splice(circularIndex, 1);
-      return `${this.itemsType.join(",")},object(/* ${this.name} circular dependency */)`;
+      return `${this.itemsType.join(",")},Joi.object(/* ${this.name} circular dependency */)`;
     }
     return this.itemsType.join(",");
   }

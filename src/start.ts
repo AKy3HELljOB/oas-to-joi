@@ -8,7 +8,7 @@ const start = async () => {
     outputDir: outputDirPath,
     unknown: true,
     emptyString: true,
-    validAsExample: false,
+    validAsExample: true,
     nullableString: true,
     nested: false,
   });

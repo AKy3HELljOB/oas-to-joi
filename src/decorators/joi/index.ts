@@ -14,3 +14,6 @@ export { JoiExampleDecorator } from "./joi-example.decorator";
 export { JoiDescriptionDecorator } from "./joi-description.decorator";
 export { JoiUnknownDecorator } from "./joi-unknown.decorator";
 export { JoiAlternativesDecorator } from "./joi-alternatives.decorator";
+export { JoiObjectDecorator } from "./joi-object.decorator";
+export { JoiEmptyObjectDecorator } from "./joi-empty-object.decorator";
+export { JoiEmptyDecorator } from "./joi-empty.decorator";

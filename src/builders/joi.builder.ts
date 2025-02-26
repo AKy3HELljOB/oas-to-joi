@@ -20,9 +20,11 @@ import {
   JoiAllowDecorator,
   JoiDescriptionDecorator,
   JoiExampleDecorator,
-  JoiUnknownDecorator,
   JoiAlternativesDecorator,
   JoiValidExampleDecorator,
+  JoiObjectDecorator,
+  JoiEmptyObjectDecorator,
+  JoiEmptyDecorator,
 } from "../decorators/joi";
 import { JoiComponent } from "../decorators/components/joi.component";
 import { Decorator } from "../decorators/decorator";
@@ -30,8 +32,6 @@ import { OASEnum } from "../enums/oas.enum";
 import { PerformanceHelper } from "../helpers/performance.helper";
 import { Options } from "../types/options.type";
 import { BaseComponent } from "../decorators/components/base.component";
-import { JoiObjectDecorator } from "../decorators/joi/joi-object.decorator";
-import { JoiEmptyObjectDecorator } from "../decorators/joi/joi-empty-object.decorator";
 
 const isReference = (
   param: OpenAPIV3.ReferenceObject | any,
@@ -120,7 +120,11 @@ export class JoiBuilder implements IBuilder {
 
       if (ref.responses) {
         Object.entries(ref.responses.properties).forEach(([code, response]) => {
-          if (response.schema?.$ref || response.schema?.properties || response.schema) {
+          if (
+            response.schema?.$ref ||
+            response.schema?.properties ||
+            response.schema
+          ) {
             const schemaName = operationName + "Response" + code;
             this.addSchema(sourceObjectList, schemaName, response.schema);
             definitions.push(schemaName);
@@ -318,13 +322,23 @@ export class JoiBuilder implements IBuilder {
       ...(def[OASEnum.ALL_OF] || []),
       ...(def[OASEnum.ONE_OF] || []),
       ...(def[OASEnum.ANY_OF] || []),
+      ...(def["items"]
+        ? [
+            ...(def["items"][OASEnum.ALL_OF] || []),
+            ...(def["items"][OASEnum.ONE_OF] || []),
+            ...(def["items"][OASEnum.ANY_OF] || []),
+          ]
+        : []),
     ];
-    refs.forEach((v) => {
-      sourceObject[name].references.push(this.shortReferenceName(v.$ref));
-    });
+    refs
+      .map((v) => this.shortReferenceName(v.$ref))
+      .filter((v) => v !== name)
+      .forEach((v) => {
+        sourceObject[name].references.push(v);
+      });
 
     joiComponent = this.getDecoratoryByType(joiComponent, def);
-    
+
     if (required) joiComponent = new JoiRequiredDecorator(joiComponent);
 
     if (!isReference(def)) {
@@ -373,14 +387,19 @@ export class JoiBuilder implements IBuilder {
           );
         }
       });
-    } else if (schema.type === 'array') { 
-      let joiComponent = new JoiComponent();
-      joiComponent = new JoiArrayDecorator(joiComponent, [
-        this.getDecoratorByPrimitiveType(schema["items"], new JoiComponent()),
-      ], schema.uniqueItems);
+    } else if (schema.type === OASEnum.ARRAY) {
+      const joiComponent = new JoiArrayDecorator(
+        new JoiComponent(),
+        [this.getDecoratorByPrimitiveType(schema["items"], new JoiComponent())],
+        schema.uniqueItems,
+      );
       joiItems.push(joiComponent);
     } else {
-      let joiComponent = this.getDecoratorByPrimitiveType(schema, new JoiComponent());
+      let joiComponent = new JoiComponent();
+      joiComponent =
+        schema.type === OASEnum.OBJECT
+          ? new JoiEmptyDecorator(joiComponent)
+          : this.makeComponent(sourceObject, name, joiComponent, false, schema);
       joiItems.push(joiComponent);
     }
     return joiItems;
@@ -400,9 +419,11 @@ export class JoiBuilder implements IBuilder {
     const joiItems: Array<JoiComponent> = [];
     this.currentName = name;
     this.makeItems(name, schema, sourceObject, joiItems);
-    sourceObject[name].definitions = joiItems.map((item) => item.generate());
+
+    sourceObject[name].definitions = joiItems.map((item) => item?.generate());
     sourceObject[name].match = this.matchAlternativesType(schema);
-    sourceObject[name].isObject = schema.type === 'object';
+    sourceObject[name].isObject =
+      schema.type === "object" || schema.properties !== undefined;
     this.performanceHelper.getMeasure(name);
     return sourceObject;
   }
@@ -462,6 +483,7 @@ export class JoiBuilder implements IBuilder {
     name: string,
   ): Decorator {
     const refs = <OpenAPIV3.ReferenceObject[]>items.filter((v) => v["$ref"]);
+
     return new JoiAlternativesDecorator(
       component,
       match,
@@ -511,8 +533,6 @@ export class JoiBuilder implements IBuilder {
         this.getAlternativesReferences(def),
         this.currentName,
       );
-    } else if (type === "object") {
-      joiComponent = new JoiEmptyObjectDecorator(joiComponent);
     } else {
       joiComponent = this.getDecoratorByPrimitiveType(def, joiComponent);
     }
@@ -552,6 +572,8 @@ export class JoiBuilder implements IBuilder {
           def["format"],
           joiComponent,
         );
+    } else if (type === OASEnum.OBJECT) {
+      decorator = new JoiEmptyObjectDecorator(joiComponent);
     } else
       decorator = new JoiStringDecorator(joiComponent, {
         format: def["format"] || type,

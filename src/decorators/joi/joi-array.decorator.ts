@@ -13,6 +13,7 @@ export class JoiArrayDecorator extends Decorator {
   constructor(
     component: BaseComponent,
     private itemsType: Array<Decorator>,
+    private unique: boolean = false,
   ) {
     super(component);
   }
@@ -22,6 +23,9 @@ export class JoiArrayDecorator extends Decorator {
   }
   public generate(): string {
     const items = this.getItemsType();
-    return `${this.component.generate()}Joi.array().items(${items})`;
+    const unique = this.unique
+      ? `.unique().messages({'array.unique': 'Массив содержит дубликаты!',});`
+      : "";
+    return `${this.component.generate()}Joi.array().items(${items})${unique}`;
   }
 }

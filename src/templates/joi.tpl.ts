@@ -2,6 +2,7 @@ type Options = {
   references: Array<string>;
   definitions: Array<string>;
   match?: "any" | "all" | "one";
+  isObject?: boolean;
 };
 
 const JOI_WORD = ".";
@@ -20,6 +21,7 @@ const schema = ${TEMPLATE_BODY_PLACEHOLDER};
 
 export default schema;
 `;
+
 const merge = (options: Options) => {
   const { references, definitions } = options;
   const needsImportJoi =
@@ -30,8 +32,14 @@ const merge = (options: Options) => {
   }
 
   const body = needsImportJoi
-    ? ((options.match) ? TEMPLATE_JOI_ALTERNATIVES(definitions, options.match) : TEMPLATE_JOI_OBJECT(definitions))
-    : (definitions.length > 1 ? `{${definitions.join(",")}}` : definitions.join(","));
+    ? options.match
+      ? TEMPLATE_JOI_ALTERNATIVES(definitions, options.match)
+      : options.isObject
+        ? TEMPLATE_JOI_OBJECT(definitions)
+        : definitions.join(",\n\u0020\u0020")
+    : definitions.length > 1
+      ? `{${definitions.join(",")}}`
+      : definitions.join(",");
 
   return template
     .replace(TEMPLATE_IMPORTS_PLACEHOLDER, references.join("\n"))

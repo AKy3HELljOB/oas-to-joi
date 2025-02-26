@@ -98,7 +98,7 @@ export class JoiBuilder implements IBuilder {
       const definitions: string[] = [];
       const references: string[] = [];
       if (ref.body) {
-        const schemaName = ref.body.refName; /* + "Body"*/
+        const schemaName = ref.body.refName + "Body";
         this.addSchema(sourceObjectList, schemaName, ref.body.schema);
         definitions.push(schemaName);
         references.push(schemaName);
@@ -120,7 +120,7 @@ export class JoiBuilder implements IBuilder {
 
       if (ref.responses) {
         Object.entries(ref.responses.properties).forEach(([code, response]) => {
-          if (response.schema?.$ref || response.schema?.properties) {
+          if (response.schema?.$ref || response.schema?.properties || response.schema) {
             const schemaName = operationName + "Response" + code;
             this.addSchema(sourceObjectList, schemaName, response.schema);
             definitions.push(schemaName);
@@ -155,9 +155,11 @@ export class JoiBuilder implements IBuilder {
       });
       return index > -1 ? true : false;
     };
+
     if (!sourceObjectIsPresent(schemaName)) {
       const sourceObject = this.makeSourceObject(schemaName, schema);
       const { references } = sourceObject[schemaName];
+
       if (references) {
         references.forEach((item) => {
           if (sourceObjectIsPresent(schemaName)) return;
@@ -320,8 +322,11 @@ export class JoiBuilder implements IBuilder {
     refs.forEach((v) => {
       sourceObject[name].references.push(this.shortReferenceName(v.$ref));
     });
+
     joiComponent = this.getDecoratoryByType(joiComponent, def);
+    
     if (required) joiComponent = new JoiRequiredDecorator(joiComponent);
+
     if (!isReference(def)) {
       const { example, description } = def;
       if (example)
@@ -368,9 +373,14 @@ export class JoiBuilder implements IBuilder {
           );
         }
       });
-    } else {
+    } else if (schema.type === 'array') { 
       let joiComponent = new JoiComponent();
-      joiComponent = new JoiUnknownDecorator(joiComponent);
+      joiComponent = new JoiArrayDecorator(joiComponent, [
+        this.getDecoratorByPrimitiveType(schema["items"], new JoiComponent()),
+      ], schema.uniqueItems);
+      joiItems.push(joiComponent);
+    } else {
+      let joiComponent = this.getDecoratorByPrimitiveType(schema, new JoiComponent());
       joiItems.push(joiComponent);
     }
     return joiItems;
@@ -392,6 +402,7 @@ export class JoiBuilder implements IBuilder {
     this.makeItems(name, schema, sourceObject, joiItems);
     sourceObject[name].definitions = joiItems.map((item) => item.generate());
     sourceObject[name].match = this.matchAlternativesType(schema);
+    sourceObject[name].isObject = schema.type === 'object';
     this.performanceHelper.getMeasure(name);
     return sourceObject;
   }
@@ -494,7 +505,6 @@ export class JoiBuilder implements IBuilder {
     } else if (def[OASEnum.REF]) {
       joiComponent = new JoiRefDecorator(joiComponent, def[OASEnum.REF]);
     } else if (this.matchAlternativesType(def)) {
-      console.log("alternatives :>> ", this.currentName);
       joiComponent = this.JoiAlternativesDecorator(
         joiComponent,
         this.matchAlternativesType(def),
@@ -579,7 +589,7 @@ export class JoiBuilder implements IBuilder {
     const itemName = this.getSourceObjectItemName(item);
     const path = this.makePath(itemName);
     const fn = this.makeSchemaFileName(itemName);
-    const { definitions, references, match } = item[itemName];
+    const { definitions, references, match, isObject } = item[itemName];
 
     const mergedTemplate = mergeJoiTpl({
       references: this.makeReferencesImportStatement(
@@ -588,6 +598,7 @@ export class JoiBuilder implements IBuilder {
       ),
       definitions,
       match,
+      isObject,
     });
 
     return [fn, mergedTemplate];

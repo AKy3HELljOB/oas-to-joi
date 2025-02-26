@@ -1,6 +1,6 @@
 {
   "name": "oas3-to-joi",
-  "version": "0.0.1",
+  "version": "0.0.2",
   "description": "Open Api Specification to Joi",
   "main": "dist/lib.js",
   "module": "dist/lib.esm.js",
@@ -26,7 +26,8 @@
     "build": "tsc --build",
     "clean": "tsc --build --clean",
     "watch:build": "tsc -p tsconfig.json -w",
-    "start": "ts-node-dev --respawn ./src/start.ts"
+    "start": "ts-node-dev --respawn ./src/start.ts",
+    "prepublishOnly": "rm -rf dist/; npm ci; npm run build; npm run rollup;"  
   },
   "keywords": [
     "cli",
@@ -35,14 +36,14 @@
   ],
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/maxmartinezc/oas-to-joi.git"
+    "url": "git+https://github.com/AKy3HELljOB/oas-to-joi.git"
   },
-  "author": "Max Martinez Cartagena",
+  "author": "Kuznecov Aleksei",
   "license": "MIT",
   "bugs": {
-    "url": "https://github.com/maxmartinezc/oas-to-joi/issues"
+    "url": "https://github.com/AKy3HELljOB/oas-to-joi/issues"
   },
-  "homepage": "https://github.com/maxmartinezc/oas-to-joi#readme",
+  "homepage": "https://github.com/AKy3HELljOB/oas-to-joi#readme",
   "dependencies": {
     "@readme/openapi-parser": "^2.5.1",
     "yaml": "^2.3.1"

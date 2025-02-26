@@ -9,7 +9,7 @@ export class JoiNameDecorator extends Decorator {
     super(component);
   }
   public generate(): string {
-    const name = this.name.indexOf("-") ? `"${this.name}"` : this.name;
+    const name = this.name.indexOf("-") > 0 ? `"${this.name}"` : this.name;
     return `${name}: ${this.component.generate()}`;
   }
 }

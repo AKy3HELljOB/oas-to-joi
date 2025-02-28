@@ -65,7 +65,8 @@ export class JoiBuilder implements IBuilder {
   data: OpenAPIV3.Document;
   readonly options: Options;
   readonly outputDir: string;
-  private CONTENT_TYPE = "application/json";
+  private CONTENT_TYPE_JSON = "application/json";
+  private CONTENT_TYPE_ALL = "*/*";
   protected fileNameExtension = ".js";
   private performanceHelper = new PerformanceHelper();
   private currentName: string = "";
@@ -207,7 +208,10 @@ export class JoiBuilder implements IBuilder {
   protected getBody(operation: OpenAPIV3.OperationObject) {
     const requestBody = <OpenAPIV3.RequestBodyObject>operation.requestBody;
     if (requestBody) {
-      const content = requestBody.content[this.CONTENT_TYPE] || null;
+      const content =
+        requestBody.content[this.CONTENT_TYPE_JSON] ||
+        requestBody.content[this.CONTENT_TYPE_ALL] ||
+        null;
       if (content) {
         return this.getSchema(
           content.schema,
@@ -263,7 +267,10 @@ export class JoiBuilder implements IBuilder {
           console.log("#ref response not supported");
         } else {
           if (response.content) {
-            const content = response.content[this.CONTENT_TYPE] || null;
+            const content =
+              response.content[this.CONTENT_TYPE_JSON] ||
+              response.content[this.CONTENT_TYPE_ALL] ||
+              null;
             if (content) {
               const schema = this.getSchema(
                 content.schema,

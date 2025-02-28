@@ -339,7 +339,9 @@ export class JoiBuilder implements IBuilder {
 
     joiComponent = this.getDecoratoryByType(joiComponent, def);
 
-    if (required) joiComponent = new JoiRequiredDecorator(joiComponent);
+    if (required) {
+      joiComponent = new JoiRequiredDecorator(joiComponent);
+    }
 
     if (!isReference(def)) {
       const { example, description } = def;
@@ -360,7 +362,9 @@ export class JoiBuilder implements IBuilder {
     const alternatives = this.getAlternativesReferences(schema);
     if (schema.properties) {
       Object.entries(schema.properties).forEach(([propName, def]) => {
-        const required = schema.required?.indexOf(propName) >= 0;
+        const required =
+          schema.required?.indexOf(propName) >= 0 || def["required"];
+
         let joiComponent = new JoiComponent();
         joiComponent = new JoiNameDecorator(joiComponent, propName);
         if (!isReference(def) && def.properties) {
@@ -400,6 +404,7 @@ export class JoiBuilder implements IBuilder {
         schema.type === OASEnum.OBJECT
           ? new JoiEmptyDecorator(joiComponent)
           : this.makeComponent(sourceObject, name, joiComponent, false, schema);
+
       joiItems.push(joiComponent);
     }
     return joiItems;

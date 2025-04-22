@@ -572,7 +572,10 @@ export class JoiBuilder implements IBuilder {
     else if (type === OASEnum.BOOLEAN)
       decorator = new JoiBooleanDecorator(joiComponent);
     else if (OASEnum.DATE.includes(type))
-      decorator = new JoiDateDecorator(joiComponent);
+      decorator = new JoiDateDecorator(joiComponent, {
+        format: type,
+        extendedJoiName: this.options.extendedJoiName,
+      });
     else if (def["format"]) {
       if (def["nullable"]) {
         decorator = new JoiAllowDecorator(
@@ -633,6 +636,8 @@ export class JoiBuilder implements IBuilder {
       definitions,
       match,
       isObject,
+      extendedJoiName: this.options.extendedJoiName,
+      extendedJoiSource: this.options.extendedJoiSource,
     });
 
     return [fn, mergedTemplate];

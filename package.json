@@ -1,6 +1,6 @@
 {
   "name": "oas3-to-joi",
-  "version": "0.0.4",
+  "version": "0.0.5",
   "description": "Open Api Specification to Joi",
   "main": "dist/lib.js",
   "module": "dist/lib.esm.js",
@@ -28,7 +28,7 @@
     "clean": "tsc --build --clean",
     "watch:build": "tsc -p tsconfig.json -w",
     "start": "ts-node-dev --respawn ./src/start.ts",
-    "prepublishOnly": "rm -rf dist/; npm ci; npm run build; npm run rollup;"  
+    "prepublishOnly": "rm -rf dist/; npm ci; npm run build; npm run rollup;"
   },
   "keywords": [
     "cli",

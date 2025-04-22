@@ -3,6 +3,8 @@ type Options = {
   definitions: Array<string>;
   match?: "any" | "all" | "one";
   isObject?: boolean;
+  extendedJoiName?: string;
+  extendedJoiSource?: string;
 };
 
 const JOI_WORD = ".";
@@ -22,12 +24,30 @@ const schema = ${TEMPLATE_BODY_PLACEHOLDER};
 export default schema;
 `;
 
+const getImportExtendedJoi = (options: Options): string | undefined => {
+  if (!options.extendedJoiSource || !options.extendedJoiName) {
+    return;
+  }
+
+  const hasDateField = options.definitions.some(
+    (def) => def.indexOf(`${options.extendedJoiName}.date()`) > -1,
+  );
+
+  if (hasDateField) {
+    return `import { ${options.extendedJoiName} } from "${options.extendedJoiSource}";`;
+  }
+};
+
 const merge = (options: Options) => {
   const { references, definitions } = options;
   const needsImportJoi =
     definitions.toString().includes(JOI_WORD) || definitions.toString() === "";
 
   if (needsImportJoi) {
+    const extendedJoiImport = getImportExtendedJoi(options);
+    if (extendedJoiImport) {
+      references.unshift(extendedJoiImport);
+    }
     references.unshift(TEMPLATE_JOI_IMPORT_PLACEHOLDER);
   }
 

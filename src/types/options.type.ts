@@ -5,5 +5,7 @@ export type Options = {
   emptyString?: boolean;
   nullableString?: boolean;
   validAsExample?: boolean;
+  extendedJoiSource?: string;
+  extendedJoiName?: string;
   nested?: boolean;
 };

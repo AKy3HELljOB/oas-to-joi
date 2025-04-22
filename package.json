@@ -1,6 +1,6 @@
 {
   "name": "oas3-to-joi",
-  "version": "0.0.3",
+  "version": "0.0.4",
   "description": "Open Api Specification to Joi",
   "main": "dist/lib.js",
   "module": "dist/lib.esm.js",
@@ -24,6 +24,7 @@
     "lint": "eslint src/**/*.ts --fix",
     "rollup": "npm run build & rollup --c",
     "build": "tsc --build",
+    "version": "npm version",
     "clean": "tsc --build --clean",
     "watch:build": "tsc -p tsconfig.json -w",
     "start": "ts-node-dev --respawn ./src/start.ts",
@@ -45,7 +46,7 @@
   },
   "homepage": "https://github.com/AKy3HELljOB/oas-to-joi#readme",
   "dependencies": {
-    "@readme/openapi-parser": "^2.5.1",
+    "@readme/openapi-parser": "^3.0.1",
     "yaml": "^2.3.1"
   },
   "devDependencies": {

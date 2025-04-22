@@ -5,7 +5,10 @@ import { ParserFactory } from "./parsers/parser.factory";
 import { IBuilder } from "./interfaces/builder.interface";
 import { TypeScriptBuilder } from "./builders/ts.builder";
 import { Utils } from "./utils";
-import OpenAPIParser from "@readme/openapi-parser";
+import {
+  validate as validateFile,
+  compileErrors,
+} from "@readme/openapi-parser";
 
 export class OasToJoi {
   protected joiBuilder: IBuilder;
@@ -47,11 +50,13 @@ export class OasToJoi {
 
   private async validate(oasDocPath: string): Promise<void> {
     Utils.consoleTitleMessage(`Validating Open API Specifications`);
-    const {
-      info: { title, version },
-    } = await OpenAPIParser.validate(oasDocPath);
+    const result = await validateFile(oasDocPath);
     Utils.consoleMessage({
-      message: `Validation OK:\nAPI name: ${title}, Version:${version}`,
+      message: JSON.stringify(result),
+      underline: true,
+    });
+    Utils.consoleMessage({
+      message: compileErrors(result),
       underline: true,
     });
   }

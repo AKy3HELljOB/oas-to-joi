@@ -351,11 +351,15 @@ export class JoiBuilder implements IBuilder {
     }
 
     if (!isReference(def)) {
-      const { example, description } = def;
-      if (example)
-        joiComponent = new JoiExampleDecorator(joiComponent, example);
-      if (description)
+      const { example, description, type } = def;
+
+      if (example) {
+        const exampleValue = type === "string" ? `${example}` : example;
+        joiComponent = new JoiExampleDecorator(joiComponent, exampleValue);
+      }
+      if (description) {
         joiComponent = new JoiDescriptionDecorator(joiComponent, description);
+      }
     }
     return joiComponent;
   }

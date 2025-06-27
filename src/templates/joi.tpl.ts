@@ -41,7 +41,9 @@ const getImportExtendedJoi = (options: Options): string | undefined => {
 const merge = (options: Options) => {
   const { references, definitions } = options;
   const needsImportJoi =
-    definitions.toString().includes(JOI_WORD) || definitions.toString() === "";
+    options.isObject ||
+    definitions.toString().includes(JOI_WORD) ||
+    definitions.toString() === "";
 
   if (needsImportJoi) {
     const extendedJoiImport = getImportExtendedJoi(options);

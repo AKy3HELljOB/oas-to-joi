@@ -374,7 +374,7 @@ export class JoiBuilder implements IBuilder {
     if (schema.properties) {
       Object.entries(schema.properties).forEach(([propName, def]) => {
         const required =
-          schema.required?.indexOf(propName) >= 0 || def["required"];
+          schema.required?.indexOf(propName) >= 0 || !!def["required"];
 
         let joiComponent = new JoiComponent();
         joiComponent = new JoiNameDecorator(joiComponent, propName);

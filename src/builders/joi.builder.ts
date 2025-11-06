@@ -53,6 +53,7 @@ interface Operations {
   [index: string]: {
     method?: string;
     url?: string;
+    header?: SchemaProp;
     query?: SchemaProp;
     path?: SchemaProp;
     responses?: SchemaProp;
@@ -115,6 +116,13 @@ export class JoiBuilder implements IBuilder {
       if (ref.path) {
         const schemaName = operationName + "Path";
         this.addSchema(sourceObjectList, schemaName, ref.path);
+        definitions.push(schemaName);
+        references.push(schemaName);
+      }
+
+      if (ref.header) {
+        const schemaName = operationName + "Header";
+        this.addSchema(sourceObjectList, schemaName, ref.header);
         definitions.push(schemaName);
         references.push(schemaName);
       }
@@ -230,6 +238,7 @@ export class JoiBuilder implements IBuilder {
 
     const path: Record<string, SchemaInfo> = {};
     const query: Record<string, SchemaInfo> = {};
+    const header: Record<string, SchemaInfo> = {};
 
     if (requestParameters) {
       requestParameters.forEach((param) => {
@@ -245,6 +254,8 @@ export class JoiBuilder implements IBuilder {
 
           if (param.in === "path") {
             path[param.name] = schema;
+          } else if (param.in === "header") {
+            header[param.name] = schema;
           } else {
             query[param.name] = schema;
           }
@@ -254,6 +265,7 @@ export class JoiBuilder implements IBuilder {
     return {
       query: Object.keys(query).length ? { properties: query } : undefined,
       path: Object.keys(path).length ? { properties: path } : undefined,
+      header: Object.keys(header).length ? { properties: header } : undefined,
     };
   }
 

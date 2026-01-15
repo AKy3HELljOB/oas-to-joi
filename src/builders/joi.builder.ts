@@ -32,6 +32,7 @@ import { OASEnum } from "../enums/oas.enum";
 import { PerformanceHelper } from "../helpers/performance.helper";
 import { Options } from "../types/options.type";
 import { BaseComponent } from "../decorators/components/base.component";
+import { findSourceObjectName } from "../helpers/find-schema.helper";
 
 const isReference = (
   param: OpenAPIV3.ReferenceObject | any,
@@ -121,8 +122,12 @@ export class JoiBuilder implements IBuilder {
       }
 
       if (ref.header) {
-        const schemaName = operationName + "Header";
-        this.addSchema(sourceObjectList, schemaName, ref.header);
+        const schemaName = this.addSchema(
+          sourceObjectList,
+          operationName + "Header",
+          ref.header,
+        );
+
         definitions.push(schemaName);
         references.push(schemaName);
       }
@@ -171,6 +176,14 @@ export class JoiBuilder implements IBuilder {
 
     if (!sourceObjectIsPresent(schemaName)) {
       const sourceObject = this.makeSourceObject(schemaName, schema);
+      if (schemaName.endsWith("Header")) {
+        const existsName = findSourceObjectName(sourceObjectList, sourceObject);
+        if (existsName) {
+          console.log("existing header schema name :>> ", existsName);
+          return existsName;
+        }
+      }
+
       const { references } = sourceObject[schemaName];
 
       if (references) {
@@ -185,7 +198,7 @@ export class JoiBuilder implements IBuilder {
       if (!sourceObjectIsPresent(schemaName))
         sourceObjectList.push(sourceObject);
     }
-    return sourceObjectList;
+    return schemaName;
   }
 
   protected getSchema(
